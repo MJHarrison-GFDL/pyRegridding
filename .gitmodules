@@ -1,0 +1,6 @@
+[submodule "pkg/MOM6"]
+	path = pkg/MOM6
+	url = git@github.com:NOAA-GFDL/MOM6.git
+[submodule "pkg/pyRemapping"]
+	path = pkg/pyRemapping
+	url = git@github.com:MJHarrison-GFDL/pyRemapping.git
