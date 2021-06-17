@@ -124,6 +124,8 @@ contains
     call initialize_regridding(CS, GV, US, max_depth, PF, 'MOM', coord_mode )
 !    CS%coordinateResolution(:)=coord_resolution(:)
 
+    call get_param(PF, 'MOM', "P_REF",tv%p_ref, &
+                 "The reference pressure", default=2.e7)
 
     tv%T => T
     tv%S => S

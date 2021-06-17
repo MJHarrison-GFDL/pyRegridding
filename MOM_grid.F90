@@ -69,6 +69,7 @@ type, public :: ocean_grid_type
 
   real, dimension(:,:), allocatable :: bathyT
   real, dimension(:,:), allocatable :: mask2dT
+  type(unit_scale_type), pointer :: US => NULL()
 end type ocean_grid_type
 
 
