@@ -2425,13 +2425,15 @@ integer function rho_function1( string, rho_target )
 
   dx = 0.
   do k = 0, nki
-    if (order==1) then
+    if (order==0) then
+       ddx=max(drho_min,real(1.0/nki))
+    elseif (order==1) then
        ddx=max(drho_min,1.0-real(nki-k)/real(nki))
     elseif (order==2) then
        ddx = max( drho_min, real(nki-k)/real(nki*nki) )
     endif
     dx = dx + ddx
-    if (order==1) then
+    if (order<2) then
        rho_target(3+k) = rho_3 + (drho) * ddx
     elseif (order==2) then
        rho_target(3+k) = rho_3 + (2. * drho) * dx

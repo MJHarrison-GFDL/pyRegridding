@@ -3,6 +3,25 @@ import regrid
 import remap
 import matplotlib.pyplot as plt#import matplotlib.pyplot as plt
 
+
+def write_MOM_PF(ale_coord_config="UNIFORM",ale_units="m",eos='LINEAR',interpolation_scheme='PLM'):
+
+    file=open('MOM_input','w')
+    txt="REGRIDDING_COORDINATE_UNITS = "+ale_units+" \n"
+    print(txt)
+    file.write(txt)
+    txt='ALE_COORDINATE_CONFIG = '+ale_coord_config+" \n"
+    file.write(txt)
+    txt='EQN_OF_STATE = '+eos+" \n"
+    file.write(txt)
+    txt='INTERPOLATION_SCHEME = '+interpolation_scheme+" \n"
+    file.write(txt)
+    file.close()
+
+def destroy_MOM_PF():
+    import os
+    os.remove('MOM_input')
+
 VERBOSE=True
 H=100.;n0=10;z0=np.linspace(0,-H,n0+1)
 T_s=2;T_b=-2
@@ -13,22 +32,34 @@ ps=np.array([1.e4])
 fs=np.array([0.])
 zbot=np.array([H])
 
-#ZSTAR
-# print('====== ZSTAR (UNIFORM) ======')
-# #Uniform Resolution
-# CoordRes=z0[:-1]-z0[1:]
-# #Perturb the Surface
-# z0[0]=z0[0]+0.1
-# z_in = z0[np.newaxis,np.newaxis,:]
-# T_in = T[np.newaxis,np.newaxis,:]
-# S_in = S[np.newaxis,np.newaxis,:]
-# z_out = np.zeros(z_in.shape)
-# ps_in = ps[np.newaxis,:]
-# fs_in = fs[np.newaxis,:]
-# zbot_in=zbot[np.newaxis,:]
-# z_out=regrid.regrid_mod.update_grid(z_in,T_in,S_in,zbot,ps_in,fs_in,'Z*',CoordRes,'PCM')
-# print('Initial Interface Positions=',np.squeeze(z_in))
-# print('Final Interface Positions=',np.squeeze(z_out))
+print('====== ZSTAR (UNIFORM) ======')
+#Uniform Resolution
+CoordRes=z0[:-1]-z0[1:]
+#Perturb the Surface
+z0[0]=z0[0]+0.1
+z_in = z0[np.newaxis,np.newaxis,:]
+T_in = T[np.newaxis,np.newaxis,:]
+S_in = S[np.newaxis,np.newaxis,:]
+z_out = np.zeros(z_in.shape)
+ps_in = ps[np.newaxis,:]
+fs_in = fs[np.newaxis,:]
+zbot_in=zbot[np.newaxis,:]
+destroy_MOM_PF()
+write_MOM_PF(ale_coord_config="FNC1:1.0,100.,0,1.e-6",ale_units="m")
+z_out=regrid.regrid_mod.update_grid(z_in,T_in,S_in,zbot,ps_in,fs_in,'Z*',CoordRes,'PCM')
+#print('Initial Interface Positions=',np.squeeze(z_in))
+#print('Final Interface Positions=',np.squeeze(z_out))
+diff=z_out-z_in
+print('RMS motion= ',np.std(diff))
+
+if VERBOSE:
+#    print('Initial Interface Positions=',np.squeeze(z_in))
+#    print('Final Interface Positions=',np.squeeze(z_out))
+    plt.figure(1)
+    plt.plot(np.squeeze(z_in).T,'bo')
+    plt.plot(np.squeeze(z_out).T,'rx')
+    plt.title('Interface Positions: Initial(o);Final(x)')
+
 
 print('====== RHO (Linear EOS) ======')
 RHO_T0_S0=1000.
@@ -46,13 +77,18 @@ z_out = np.zeros(z_in.shape)
 ps_in = ps[np.newaxis,:]
 fs_in = fs[np.newaxis,:]
 zbot_in=zbot[np.newaxis,:]
+destroy_MOM_PF()
+write_MOM_PF(ale_coord_config="\"RFNC1:10,1026.96,1027.12,1027.28,1.065,1028.4,0.001,1\"",ale_units="kg m^-3",eos='LINEAR',interpolation_scheme='PLM')
+#write_MOM_PF(ale_coord_config="\"RFNC1:10,1026.96,1027.12,1027.28,1.12,1028.4,0.001,0\"",ale_units="kg m^-3",eos='LINEAR',interpolation_scheme='PLM')
 z_out=regrid.regrid_mod.update_grid(z_in,T_in,S_in,zbot,ps_in,fs_in,'RHO',CoordRes,'PCM')
 diff=z_out-z_in
 print('RMS motion= ',np.std(diff))
 
 if VERBOSE:
-    print('Initial Interface Positions=',np.squeeze(z_in))
-    print('Final Interface Positions=',np.squeeze(z_out))
+#    print('Initial Interface Positions=',np.squeeze(z_in))
+#    print('Final Interface Positions=',np.squeeze(z_out))
+    plt.figure(2)
     plt.plot(np.squeeze(z_in).T,'bo')
     plt.plot(np.squeeze(z_out).T,'rx')
+    plt.title('Interface Positions: Initial(o);Final(x)')
     plt.show()
