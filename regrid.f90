@@ -26,15 +26,17 @@ module regrid_mod
 
 contains
 
-  function regrid(zi,T,S,ps,frac_shelf_h,coord_mode,remapping_scheme)
+  subroutine regrid(zi,T,S,zbot,ps,frac_shelf_h,coord_mode,coord_resolution,remapping_scheme,zo)
     real(kind=8), dimension(:,:,:), intent(in) :: zi !< The original interface positions
     real(kind=8), target, dimension(:,:,:), intent(in) :: T  !< Temperature on original grid (degC)
     real(kind=8), target, dimension(:,:,:), intent(in) :: S  !< Salinity on original grid (g kg-1)
+    real(kind=8), dimension(:,:), intent(in) :: zbot !< The original interface positions
     real(kind=8), target, dimension(:,:), intent(in) :: ps  !< Surface pressure force (kg m s-2 )
     real(kind=8), dimension(:,:), intent(in) :: frac_shelf_h  !< Fractional ice shelf area (nondim)
     character(len=*), intent(in) :: coord_mode !< The coordinate mode ('REGRIDDING_ZSTAR', etc.')
+    real(kind=8), dimension(:) :: coord_resolution !< The nominal coordinate resolution in units defined by coord_mode
     character(len=*), intent(in) :: remapping_scheme !< The remapping scheme to use for coordinate construction ('PLM','PPM_IH4',etc)
-    real, dimension(size(zi,1),size(zi,2),size(zi,3)) :: regrid !< The resulting coordinate positions
+    real, dimension(:,:,:), intent(out) :: zo !< The update grid interface positions
 
     real, parameter :: epsln=1.e-10
     real, parameter :: min_thickness=1.e-9
@@ -42,16 +44,16 @@ contains
     type(regridding_CS) :: CS
     type(verticalGrid_type) :: GV
     type(ocean_grid_type) :: G
-    type(unit_scale_type) :: US
+    type(unit_scale_type), pointer :: US=>NULL()
 
     type(param_file_type) :: PF
-    type(directories) :: dir
+    type(directories) :: dirs
 
     type(thermo_var_ptrs) :: tv
     type(remapping_CS) :: remapCS
 
-    real(kind=8), dimension(size(zi,3)-1) :: h0
-    real(kind=8), dimension(size(zi,3)-1) :: h_new
+    real(kind=8), dimension(size(zi,1),size(zi,2),size(zi,3)-1) :: h0
+    real(kind=8), dimension(size(zi,1),size(zi,2),size(zi,3)-1) :: h_new
     real(kind=8), dimension(size(zi,1),size(zi,2),size(zi,3)) :: dzInterface
 
 
@@ -61,18 +63,20 @@ contains
 
     ni=size(zi,1);nj=size(zi,2);nk=size(zi,3)-1
 
-
+    if (ni /= size(zo,1) .or. nj .ne. size(zo,2) .or. nk /= size(zo,3)-1) call MOM_error(FATAL,'size mismatch zi/zo')
     if (ni /= size(T,1) .or. nj .ne. size(T,2) .or. nk /= size(T,3)) call MOM_error(FATAL,'size mismatch zi/T')
     if (ni /= size(S,1) .or. nj .ne. size(S,2) .or. nk /= size(S,3)) call MOM_error(FATAL,'size mismatch zi/S')
     if (ni /= size(ps,1) .or. nj .ne. size(ps,2)) call MOM_error(FATAL,'size mismatch zi/ps')
 
-    print *,'Hello 1!'
     G%isc=1;G%iec=ni;G%jsc=1;G%jec=nj
+    G%isd=1;G%ied=ni;G%jsd=1;G%jed=nj
+    allocate(G%bathyT(G%isc:G%iec,G%jsc:G%jec))
+    G%bathyT(:,:)=zbot(:,:)
 
-    max_depth=maxval(zi)
-!    call get_MOM_input(PF, dirs)
-!    call unit_scaling_init(PF,US)
-    print *,'Hello 2!'
+    max_depth=-minval(zi)
+    print *,'max_depth=',max_depth
+    call get_MOM_input(PF, dirs)
+    call unit_scaling_init(PF,US)
     GV%g_Earth=9.8
     GV%Boussinesq = .true.
     GV%Angstrom_m = 1.e-12
@@ -108,35 +112,32 @@ contains
     allocate( GV%Rlay(nk) )      ; GV%Rlay(:) = 0.0
 
     !call MOM_domains_init(G%domain, PF, symmetric=.true.,domain_name='MOM')
-    print *,'Hello 3'
     call set_regrid_params(CS)
-    print *,'Hello 4'
     call initialize_remapping(remapCS,remapping_scheme)
-    print *,'Hello 5'
-    print *,'max_depth=',max_depth
 
     call initialize_regridding(CS, GV, US, max_depth, PF, 'MOM', coord_mode )
-    print *,'Hello 6'
+!    CS%coordinateResolution(:)=coord_resolution(:)
+
+
     tv%T => T
     tv%S => S
 
     do j=1,nj
       do i=1,ni
         do k=1,nk
-          h0(k)=zi(i,j,k)-zi(i,j,k+1)
+          h0(i,j,k)=zi(i,j,k)-zi(i,j,k+1)
         enddo
       enddo
     enddo
-
-    print *,'Hello 7'
     call regridding_main(remapCS, CS, G, GV, h0, tv, h_new, dzInterface, frac_shelf_h, conv_adjust)
-    print *,'Hello 8'
-    print *,'dzInterface.shape=',size(dzInterface)
-    regrid=zi+dzInterface
 
-    return
 
-  end function regrid
+    print *,'dzInterface=',dzInterface
+    zo=zi+dzInterface
+    print *,'zo=',zo
+
+
+  end subroutine regrid
 
 
 

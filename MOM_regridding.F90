@@ -44,7 +44,7 @@ type :: thermo_var_ptrs
 end type thermo_var_ptrs
 
 !> Regridding control structure
-type, public :: regridding_CS ; private
+type, public :: regridding_CS
 
   !> This array is set by function setCoordinateResolution()
   !! It contains the "resolution" or delta coordinate of the target
@@ -223,26 +223,20 @@ subroutine initialize_regridding(CS, GV, US, max_depth, param_file, mdl, coord_m
                                      250., 375., 500., 500., 500., 500., 500., 500., &
                                      500., 500., 500., 500., 500., 500., 500., 500. /)
 
-  print *,'Initialize_regridding: 1'
   call get_param(param_file, mdl, "INPUTDIR", inputdir, default=".")
   inputdir = slasher(inputdir)
   main_parameters=.false.
 
   if (.not.PRESENT(param_prefix)) param_prefix=''
-  print *,'Initialize_regridding: 2!!!'
 
   if (.not.PRESENT(param_suffix)) param_suffix=''
-  print *,'Initialize_regridding: 2!!!!'
   if (len_trim(param_prefix)==0) main_parameters=.true.
-  print *,'Initialize_regridding: 2a'
   if (main_parameters .and. len_trim(param_suffix)>0) call MOM_error(FATAL,trim(mdl)//', initialize_regridding: '// &
               'Suffix provided without prefix for parameter names!')
-  print *,'Initialize_regridding: 2a1'
   CS%nk = 0
   CS%regridding_scheme = coordinateMode(coord_mode)
   coord_is_state_dependent = state_dependent(coord_mode)
   maximum_depth = US%Z_to_m*max_depth
-  print *,'Initialize_regridding: 2b'
   if (main_parameters) then
     ! Read coordinate units parameter (main model = REGRIDDING_COORDINATE_UNITS)
     call get_param(param_file, mdl, "REGRIDDING_COORDINATE_UNITS", coord_units, &
@@ -250,7 +244,6 @@ subroutine initialize_regridding(CS, GV, US, max_depth, param_file, mdl, coord_m
   else
     coord_units=coordinateUnits(coord_mode)
   endif
-  print *,'Initialize_regridding: 3'
   if (coord_is_state_dependent) then
     if (main_parameters) then
       param_name = "INTERPOLATION_SCHEME"
@@ -289,7 +282,6 @@ subroutine initialize_regridding(CS, GV, US, max_depth, param_file, mdl, coord_m
   else
     call set_regrid_params(CS, boundary_extrapolation=.false.)
   endif
-  print *,'Initialize_regridding: 4'
   ! Read coordinate configuration parameter (main model = ALE_COORDINATE_CONFIG)
   if (main_parameters) then
     param_name = "ALE_COORDINATE_CONFIG"
@@ -464,8 +456,6 @@ subroutine initialize_regridding(CS, GV, US, max_depth, param_file, mdl, coord_m
     call MOM_error(FATAL,trim(mdl)//", initialize_regridding: "// &
       "Unrecognized coordinate configuration"//trim(string))
   endif
-  print *,'Initialize_regridding: 5!'
-  print *,'coord_mode=',trim(coord_mode)
   if (main_parameters) then
     ! This is a work around to apparently needed to work with the from_Z initialization...  ???
     if (coordinateMode(coord_mode) == REGRIDDING_ZSTAR .or. &
@@ -488,7 +478,6 @@ subroutine initialize_regridding(CS, GV, US, max_depth, param_file, mdl, coord_m
   endif
 
   CS%nk=ke
-  print *,'Initialize_regridding: 6'
   ! Target resolution (for fixed coordinates)
   allocate( CS%coordinateResolution(CS%nk) ); CS%coordinateResolution(:) = -1.E30
   if (state_dependent(CS%regridding_scheme)) then
@@ -510,7 +499,6 @@ subroutine initialize_regridding(CS, GV, US, max_depth, param_file, mdl, coord_m
       CS%coord_scale = US%Z_to_m
     endif
   endif
-  print *,'Initialize_regridding: 7'
   if (allocated(rho_target)) then
     call set_target_densities(CS, US%kg_m3_to_R*rho_target)
     deallocate(rho_target)
@@ -521,10 +509,8 @@ subroutine initialize_regridding(CS, GV, US, max_depth, param_file, mdl, coord_m
     call log_param(param_file, mdl, "!TARGET_DENSITIES", US%R_to_kg_m3*CS%target_density(:), &
              'RHO target densities for interfaces', units=coordinateUnits(coord_mode))
   endif
-  print *,'Initialize_regridding: 8'
   ! initialise coordinate-specific control structure
   call initCoord(CS, GV, US, coord_mode)
-  print *,'Initialize_regridding: 9'
   if (main_parameters .and. coord_is_state_dependent) then
     call get_param(param_file, mdl, "P_REF", P_Ref, &
                  "The pressure that is used for calculating the coordinate "//&
@@ -537,17 +523,15 @@ subroutine initialize_regridding(CS, GV, US, max_depth, param_file, mdl, coord_m
                  "regions appear stratified.", units="nondim", default=0.)
     call set_regrid_params(CS, compress_fraction=tmpReal, ref_pressure=P_Ref)
   endif
-
   if (main_parameters) then
     call get_param(param_file, mdl, "MIN_THICKNESS", tmpReal, &
                  "When regridding, this is the minimum layer "//&
                  "thickness allowed.", units="m", scale=GV%m_to_H, &
-                 default=regriddingDefaultMinThickness )
-    call set_regrid_params(CS, min_thickness=tmpReal)
+                 default=regriddingDefaultMinThickness,do_not_log=.true. )
+     call set_regrid_params(CS, min_thickness=tmpReal)
   else
     call set_regrid_params(CS, min_thickness=0.)
   endif
-  print *,'Initialize_regridding: 10'
   if (coordinateMode(coord_mode) == REGRIDDING_SLIGHT) then
     ! Set SLight-specific regridding parameters.
     call get_param(param_file, mdl, "SLIGHT_DZ_SURFACE", dz_fixed_sfc, &
@@ -590,7 +574,6 @@ subroutine initialize_regridding(CS, GV, US, max_depth, param_file, mdl, coord_m
     endif
 
   endif
-  print *,'Initialize_regridding: 11'
   if (coordinateMode(coord_mode) == REGRIDDING_ADAPTIVE) then
     call get_param(param_file, mdl, "ADAPT_TIME_RATIO", adaptTimeRatio, &
                  "Ratio of ALE timestep to grid timescale.", units="nondim", default=1.0e-1)
@@ -629,7 +612,6 @@ subroutine initialize_regridding(CS, GV, US, max_depth, param_file, mdl, coord_m
     message = "The list of maximum depths for each interface."
     allocate(z_max(ke+1))
     allocate(dz_max(ke))
-    print *,'Initialize_regridding: 12'
     if ( trim(string) == "NONE") then
       ! Do nothing.
     elseif ( trim(string) ==  "PARAM") then
@@ -684,7 +666,6 @@ subroutine initialize_regridding(CS, GV, US, max_depth, param_file, mdl, coord_m
     endif
     deallocate(z_max)
     deallocate(dz_max)
-    print *,'Initialize_regridding: 13'
     ! Optionally specify maximum thicknesses for each layer, enforced by moving
     ! the interface below a layer downward.
     call get_param(param_file, mdl, "MAX_LAYER_THICKNESS_CONFIG", string, &
@@ -741,7 +722,6 @@ subroutine initialize_regridding(CS, GV, US, max_depth, param_file, mdl, coord_m
     endif
     deallocate(h_max)
   endif
-    print *,'Initialize_regridding: 14'
   if (allocated(dz)) deallocate(dz)
 end subroutine initialize_regridding
 
@@ -860,8 +840,8 @@ subroutine calc_h_new_by_dz(CS, G, GV, h, dzInterface, h_new)
   nki = min(CS%nk, GV%ke)
 
   !$OMP parallel do default(shared)
-  do j = G%jsc-1,G%jec+1
-    do i = G%isc-1,G%iec+1
+  do j = G%jsc,G%jec
+    do i = G%isc,G%iec
 !      if (G%mask2dT(i,j)>0.) then
         do k=1,nki
           h_new(i,j,k) = max( 0., h(i,j,k) + ( dzInterface(i,j,k) - dzInterface(i,j,k+1) ) )
@@ -893,7 +873,7 @@ subroutine check_remapping_grid( G, GV, h, dzInterface, msg )
   integer :: i, j
 
   !$OMP parallel do default(shared)
-  do j = G%jsc-1,G%jec+1 ; do i = G%isc-1,G%iec+1
+  do j = G%jsc,G%jec ; do i = G%isc,G%iec
     !if (G%mask2dT(i,j)>0.)
     call check_grid_column( GV%ke, GV%Z_to_H*G%bathyT(i,j), h(i,j,:), dzInterface(i,j,:), msg )
   enddo ; enddo
@@ -1125,8 +1105,8 @@ subroutine build_zstar_grid( CS, G, GV, h, dzInterface, frac_shelf_h)
 !$OMP                                  ice_shelf,minThickness) &
 !$OMP                          private(nominalDepth,totalThickness, &
 !$OMP                                  zNew,dh,zOld)
-  do j = G%jsc-1,G%jec+1
-    do i = G%isc-1,G%iec+1
+  do j = G%jsc,G%jec
+    do i = G%isc,G%iec
 
       !if (G%mask2dT(i,j)==0.) then
       !  dzInterface(i,j,:) = 0.
@@ -1141,7 +1121,6 @@ subroutine build_zstar_grid( CS, G, GV, h, dzInterface, frac_shelf_h)
       do k = 1,nz
         totalThickness = totalThickness + h(i,j,k)
       enddo
-
       zOld(nz+1) = - nominalDepth
       do k = nz,1,-1
         zOld(k) = zOld(k+1) + h(i,j,k)
@@ -1160,7 +1139,6 @@ subroutine build_zstar_grid( CS, G, GV, h, dzInterface, frac_shelf_h)
         call build_zstar_column(CS%zlike_CS, nominalDepth, totalThickness, &
                                 zNew, zScale=GV%Z_to_H)
       endif
-
       ! Calculate the final change in grid position after blending new and old grids
       call filtered_grid_motion( CS, nz, zOld, zNew, dzInterface(i,j,:) )
 
@@ -1215,8 +1193,8 @@ subroutine build_sigma_grid( CS, G, GV, h, dzInterface )
 
   nz = GV%ke
 
-  do i = G%isc-1,G%iec+1
-    do j = G%jsc-1,G%jec+1
+  do i = G%isc,G%iec
+    do j = G%jsc,G%jec
 
       !if (G%mask2dT(i,j)==0.) then
       !  dzInterface(i,j,:) = 0.
@@ -1733,8 +1711,8 @@ subroutine build_grid_arbitrary( G, GV, h, dzInterface, h_new, CS )
   nz = GV%ke
   max_depth = G%max_depth*GV%Z_to_H
 
-  do j = G%jsc-1,G%jec+1
-    do i = G%isc-1,G%iec+1
+  do j = G%jsc,G%jec
+    do i = G%isc,G%iec
 
       ! Local depth
       local_depth = G%bathyT(i,j)*GV%Z_to_H
@@ -1870,7 +1848,7 @@ subroutine convective_adjustment(G, GV, h, tv)
   p_col(:) = 0.
 
   ! Loop on columns
-  do j = G%jsc-1,G%jec+1 ; do i = G%isc-1,G%iec+1
+  do j = G%jsc,G%jec ; do i = G%isc,G%iec
 
     ! Compute densities within current water column
     !call calculate_density( tv%T(i,j,:), tv%S(i,j,:), p_col, densities, tv%eqn_of_state)
