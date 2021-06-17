@@ -9,7 +9,7 @@ module regrid_mod
   use MOM_regridding, only : uniformResolution, DEFAULT_COORDINATE_MODE
   use MOM_regridding, only : thermo_var_ptrs
   use MOM_remapping, only : initialize_remapping, remapping_CS
-  use MOM_eos, only : EOS_type
+  use MOM_eos, only : EOS_type, EOS_init
   use MOM_grid, only : ocean_grid_type
   use MOM_error_handler, only : MOM_error, FATAL
   use MOM_unit_scaling,     only : unit_scale_type, unit_scaling_init
@@ -70,7 +70,13 @@ contains
     G%isc=1;G%iec=ni;G%jsc=1;G%jec=nj
     G%isd=1;G%ied=ni;G%jsd=1;G%jed=nj
     allocate(G%bathyT(G%isc:G%iec,G%jsc:G%jec))
+    allocate(G%mask2dT(G%isc:G%iec,G%jsc:G%jec))
     G%bathyT(:,:)=zbot(:,:)
+
+    G%mask2dT(:,:)=0.0
+    do j=1,nj; do i=1,ni
+      if (G%bathyT(i,j)>0.) G%mask2dT(i,j)=1
+    enddo; enddo
 
     max_depth=-minval(zi)
     print *,'max_depth=',max_depth
@@ -111,6 +117,7 @@ contains
     allocate( GV%Rlay(nk) )      ; GV%Rlay(:) = 0.0
 
     !call MOM_domains_init(G%domain, PF, symmetric=.true.,domain_name='MOM')
+    call EOS_init(PF, tv%eqn_of_state,US)
     call set_regrid_params(CS)
     call initialize_remapping(remapCS,remapping_scheme)
 
@@ -131,7 +138,6 @@ contains
     call regridding_main(remapCS, CS, G, GV, h0, tv, h_new, dzInterface, frac_shelf_h, conv_adjust)
 
 
-    print *,'dzInterface=',dzInterface
     update_grid=zi+dzInterface
 
 

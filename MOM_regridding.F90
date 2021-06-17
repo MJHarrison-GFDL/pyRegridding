@@ -24,7 +24,7 @@ use regrid_interp, only : interp_CS_type, set_interp_scheme, set_interp_extrap
 
 use coord_zlike,  only : init_coord_zlike, zlike_CS, set_zlike_params, build_zstar_column, end_coord_zlike
 use coord_sigma,  only : init_coord_sigma, sigma_CS, set_sigma_params, build_sigma_column, end_coord_sigma
-!use coord_rho,    only : init_coord_rho, rho_CS, set_rho_params, build_rho_column, end_coord_rho
+use coord_rho,    only : init_coord_rho, rho_CS, set_rho_params, build_rho_column, end_coord_rho
 !use coord_rho,    only : old_inflate_layers_1d
 !use coord_hycom,  only : init_coord_hycom, hycom_CS, set_hycom_params, build_hycom1_column, end_coord_hycom
 !use coord_slight, only : init_coord_slight, slight_CS, set_slight_params, build_slight_column, end_coord_slight
@@ -41,6 +41,7 @@ implicit none ; private
 type :: thermo_var_ptrs
    real, dimension(:,:,:), pointer :: T=>NULL()
    real, dimension(:,:,:), pointer :: S=>NULL()
+   type(EOS_type), pointer :: eqn_of_state => NULL()
 end type thermo_var_ptrs
 
 !> Regridding control structure
@@ -123,7 +124,7 @@ type, public :: regridding_CS
 
   type(zlike_CS),  pointer :: zlike_CS  => null() !< Control structure for z-like coordinate generator
   type(sigma_CS),  pointer :: sigma_CS  => null() !< Control structure for sigma coordinate generator
-!  type(rho_CS),    pointer :: rho_CS    => null() !< Control structure for rho coordinate generator
+  type(rho_CS),    pointer :: rho_CS    => null() !< Control structure for rho coordinate generator
 !  type(hycom_CS),  pointer :: hycom_CS  => null() !< Control structure for hybrid coordinate generator
 !  type(slight_CS), pointer :: slight_CS => null() !< Control structure for Slight-coordinate generator
 !  type(adapt_CS),  pointer :: adapt_CS  => null() !< Control structure for adaptive coordinate generator
@@ -500,7 +501,8 @@ subroutine initialize_regridding(CS, GV, US, max_depth, param_file, mdl, coord_m
     endif
   endif
   if (allocated(rho_target)) then
-    call set_target_densities(CS, US%kg_m3_to_R*rho_target)
+     call set_target_densities(CS, US%kg_m3_to_R*rho_target)
+     print *,'Target Densities=',CS%target_density
     deallocate(rho_target)
 
   ! \todo This line looks like it would overwrite the target densities set just above?
@@ -798,21 +800,21 @@ subroutine regridding_main( remapCS, CS, G, GV, h, tv, h_new, dzInterface, frac_
     case ( REGRIDDING_SIGMA )
       call build_sigma_grid( CS, G, GV, h, dzInterface )
       call calc_h_new_by_dz(CS, G, GV, h, dzInterface, h_new)
-    ! case ( REGRIDDING_RHO )
-    !   if (do_convective_adjustment) call convective_adjustment(G, GV, h, tv)
-    !   call build_rho_grid( G, GV, G%US, h, tv, dzInterface, remapCS, CS, frac_shelf_h )
-    !   call calc_h_new_by_dz(CS, G, GV, h, dzInterface, h_new)
-    ! case ( REGRIDDING_ARBITRARY )
-    !   call build_grid_arbitrary( G, GV, h, dzInterface, trickGnuCompiler, CS )
-    !   call calc_h_new_by_dz(CS, G, GV, h, dzInterface, h_new)
-!    case ( REGRIDDING_HYCOM1 )
-!      call build_grid_HyCOM1( G, GV, G%US, h, tv, h_new, dzInterface, CS, frac_shelf_h )
-!    case ( REGRIDDING_SLIGHT )
-!      call build_grid_SLight( G, GV, G%US, h, tv, dzInterface, CS )
-!      call calc_h_new_by_dz(CS, G, GV, h, dzInterface, h_new)
-    ! case ( REGRIDDING_ADAPTIVE )
-    !   call build_grid_adaptive(G, GV, G%US, h, tv, dzInterface, remapCS, CS)
-    !   call calc_h_new_by_dz(CS, G, GV, h, dzInterface, h_new)
+    case ( REGRIDDING_RHO )
+      if (do_convective_adjustment) call convective_adjustment(G, GV, h, tv)
+      call build_rho_grid( G, GV, h, tv, dzInterface, remapCS, CS, frac_shelf_h )
+      call calc_h_new_by_dz(CS, G, GV, h, dzInterface, h_new)
+   !  case ( REGRIDDING_ARBITRARY )
+   !    call build_grid_arbitrary( G, GV, h, dzInterface, trickGnuCompiler, CS )
+   !    call calc_h_new_by_dz(CS, G, GV, h, dzInterface, h_new)
+   ! case ( REGRIDDING_HYCOM1 )
+   !   call build_grid_HyCOM1( G, GV, G%US, h, tv, h_new, dzInterface, CS, frac_shelf_h )
+   ! case ( REGRIDDING_SLIGHT )
+   !   call build_grid_SLight( G, GV, G%US, h, tv, dzInterface, CS )
+   !   call calc_h_new_by_dz(CS, G, GV, h, dzInterface, h_new)
+   !  case ( REGRIDDING_ADAPTIVE )
+   !    call build_grid_adaptive(G, GV, G%US, h, tv, dzInterface, remapCS, CS)
+   !    call calc_h_new_by_dz(CS, G, GV, h, dzInterface, h_new)
 
     case default
       call MOM_error(FATAL,'MOM_regridding, regridding_main: '//&
@@ -1248,152 +1250,152 @@ end subroutine build_sigma_grid
 ! Build grid based on target interface densities
 !------------------------------------------------------------------------------
 !> This routine builds a new grid based on a given set of target interface densities.
-! subroutine build_rho_grid( G, GV, US, h, tv, dzInterface, remapCS, CS, frac_shelf_h )
-! !------------------------------------------------------------------------------
-! ! This routine builds a new grid based on a given set of target interface
-! ! densities (these target densities are computed by taking the mean value
-! ! of given layer densities). The algorithn operates as follows within each
-! ! column:
-! ! 1. Given T & S within each layer, the layer densities are computed.
-! ! 2. Based on these layer densities, a global density profile is reconstructed
-! !    (this profile is monotonically increasing and may be discontinuous)
-! ! 3. The new grid interfaces are determined based on the target interface
-! !    densities.
-! ! 4. T & S are remapped onto the new grid.
-! ! 5. Return to step 1 until convergence or until the maximum number of
-! !    iterations is reached, whichever comes first.
-! !------------------------------------------------------------------------------
+ subroutine build_rho_grid( G, GV, h, tv, dzInterface, remapCS, CS, frac_shelf_h )
+!------------------------------------------------------------------------------
+! This routine builds a new grid based on a given set of target interface
+! densities (these target densities are computed by taking the mean value
+! of given layer densities). The algorithn operates as follows within each
+! column:
+! 1. Given T & S within each layer, the layer densities are computed.
+! 2. Based on these layer densities, a global density profile is reconstructed
+!    (this profile is monotonically increasing and may be discontinuous)
+! 3. The new grid interfaces are determined based on the target interface
+!    densities.
+! 4. T & S are remapped onto the new grid.
+! 5. Return to step 1 until convergence or until the maximum number of
+!    iterations is reached, whichever comes first.
+!------------------------------------------------------------------------------
 
-!   ! Arguments
-!   type(ocean_grid_type),                        intent(in)    :: G  !< Ocean grid structure
-!   type(verticalGrid_type),                      intent(in)    :: GV !< Ocean vertical grid structure
-!   type(unit_scale_type),                        intent(in)    :: US !< A dimensional unit scaling type
-!   real, dimension(SZI_(G),SZJ_(G),SZK_(GV)),    intent(in)    :: h  !< Layer thicknesses [H ~> m or kg m-2]
-!   type(thermo_var_ptrs),                        intent(in)    :: tv !< Thermodynamics structure
-!   real, dimension(SZI_(G),SZJ_(G), SZK_(GV)+1), intent(inout) :: dzInterface !< The change in interface depth
-!                                                                     !! [H ~> m or kg m-2]
-!   type(remapping_CS),                           intent(in)    :: remapCS !< The remapping control structure
-!   type(regridding_CS),                          intent(in)    :: CS !< Regridding control structure
-!   real, dimension(SZI_(G),SZJ_(G)), optional,   intent(in)    :: frac_shelf_h  !< Fractional
-!                                                                     !! ice shelf coverage [nodim]
-!   ! Local variables
-!   integer :: nz
-!   integer :: i, j, k
-!   real    :: nominalDepth   ! Depth of the bottom of the ocean, positive downward [H ~> m or kg m-2]
-!   real, dimension(SZK_(GV)+1) :: zOld, zNew ! Old and new interface heights [H ~> m or kg m-2]
-!   real :: h_neglect, h_neglect_edge ! Negligible thicknesses [H ~> m or kg m-2]
-!   real    :: totalThickness ! Total thicknesses [H ~> m or kg m-2]
-! #ifdef __DO_SAFETY_CHECKS__
-!   real    :: dh
-! #endif
-!   logical :: ice_shelf
+  ! Arguments
+  type(ocean_grid_type),                        intent(in)    :: G  !< Ocean grid structure
+  type(verticalGrid_type),                      intent(in)    :: GV !< Ocean vertical grid structure
+!  type(unit_scale_type),                        intent(in)    :: US !< A dimensional unit scaling type
+  real, dimension(SZI_(G),SZJ_(G),SZK_(GV)),    intent(in)    :: h  !< Layer thicknesses [H ~> m or kg m-2]
+  type(thermo_var_ptrs),                        intent(in)    :: tv !< Thermodynamics structure
+  real, dimension(SZI_(G),SZJ_(G), SZK_(GV)+1), intent(inout) :: dzInterface !< The change in interface depth
+                                                                    !! [H ~> m or kg m-2]
+  type(remapping_CS),                           intent(in)    :: remapCS !< The remapping control structure
+  type(regridding_CS),                          intent(in)    :: CS !< Regridding control structure
+  real, dimension(SZI_(G),SZJ_(G)), optional,   intent(in)    :: frac_shelf_h  !< Fractional
+                                                                    !! ice shelf coverage [nodim]
+  ! Local variables
+  integer :: nz
+  integer :: i, j, k
+  real    :: nominalDepth   ! Depth of the bottom of the ocean, positive downward [H ~> m or kg m-2]
+  real, dimension(SZK_(GV)+1) :: zOld, zNew ! Old and new interface heights [H ~> m or kg m-2]
+  real :: h_neglect, h_neglect_edge ! Negligible thicknesses [H ~> m or kg m-2]
+  real    :: totalThickness ! Total thicknesses [H ~> m or kg m-2]
+#ifdef __DO_SAFETY_CHECKS__
+  real    :: dh
+#endif
+  logical :: ice_shelf
 
-!   if (.not.CS%remap_answers_2018) then
-!     h_neglect = GV%H_subroundoff ; h_neglect_edge = GV%H_subroundoff
-!   elseif (GV%Boussinesq) then
-!     h_neglect = GV%m_to_H*1.0e-30 ; h_neglect_edge = GV%m_to_H*1.0e-10
-!   else
-!     h_neglect = GV%kg_m2_to_H*1.0e-30 ; h_neglect_edge = GV%kg_m2_to_H*1.0e-10
-!   endif
+  if (.not.CS%remap_answers_2018) then
+    h_neglect = GV%H_subroundoff ; h_neglect_edge = GV%H_subroundoff
+  elseif (GV%Boussinesq) then
+    h_neglect = GV%m_to_H*1.0e-30 ; h_neglect_edge = GV%m_to_H*1.0e-10
+  else
+    h_neglect = GV%kg_m2_to_H*1.0e-30 ; h_neglect_edge = GV%kg_m2_to_H*1.0e-10
+  endif
 
-!   nz = GV%ke
-!   ice_shelf = present(frac_shelf_h)
+  nz = GV%ke
+  ice_shelf = present(frac_shelf_h)
 
-!   if (.not.CS%target_density_set) call MOM_error(FATAL, "build_rho_grid: "//&
-!         "Target densities must be set before build_rho_grid is called.")
+  if (.not.CS%target_density_set) call MOM_error(FATAL, "build_rho_grid: "//&
+        "Target densities must be set before build_rho_grid is called.")
 
-!   ! Build grid based on target interface densities
-!   do j = G%jsc-1,G%jec+1
-!     do i = G%isc-1,G%iec+1
+  ! Build grid based on target interface densities
+  do j = G%jsc,G%jec
+    do i = G%isc,G%iec
 
-!       if (G%mask2dT(i,j)==0.) then
-!         dzInterface(i,j,:) = 0.
-!         cycle
-!       endif
+      if (G%mask2dT(i,j)==0.) then
+        dzInterface(i,j,:) = 0.
+        cycle
+      endif
 
 
-!       ! Local depth (G%bathyT is positive)
-!       nominalDepth = G%bathyT(i,j)*GV%Z_to_H
+      ! Local depth (G%bathyT is positive)
+      nominalDepth = G%bathyT(i,j)*GV%Z_to_H
 
-!       ! Determine total water column thickness
-!       totalThickness = 0.0
-!       do k=1,nz
-!         totalThickness = totalThickness + h(i,j,k)
-!       enddo
-!       ! Determine absolute interface positions
-!       zOld(nz+1) = - nominalDepth
-!       do k = nz,1,-1
-!         zOld(k) = zOld(k+1) + h(i,j,k)
-!       enddo
+      ! Determine total water column thickness
+      totalThickness = 0.0
+      do k=1,nz
+        totalThickness = totalThickness + h(i,j,k)
+      enddo
+      ! Determine absolute interface positions
+      zOld(nz+1) = - nominalDepth
+      do k = nz,1,-1
+        zOld(k) = zOld(k+1) + h(i,j,k)
+      enddo
 
-!       if (ice_shelf) then
-!          call build_rho_column(CS%rho_CS, nz, nominalDepth, h(i, j, :), &
-!               tv%T(i, j, :), tv%S(i, j, :), tv%eqn_of_state, zNew, &
-!               z_rigid_top = totalThickness - nominalDepth, eta_orig = zOld(1), &
-!               h_neglect=h_neglect, h_neglect_edge=h_neglect_edge)
-!       else
-!          call build_rho_column(CS%rho_CS, nz, nominalDepth, h(i, j, :), &
-!                             tv%T(i, j, :), tv%S(i, j, :), tv%eqn_of_state, zNew, &
-!                             h_neglect=h_neglect, h_neglect_edge=h_neglect_edge)
-!       endif
 
-!       if (CS%integrate_downward_for_e) then
-!         zOld(1) = 0.
-!         do k = 1,nz
-!           zOld(k+1) = zOld(k) - h(i,j,k)
-!         enddo
-!       else
-!         ! The rest of the model defines grids integrating up from the bottom
-!         zOld(nz+1) = - nominalDepth
-!         do k = nz,1,-1
-!           zOld(k) = zOld(k+1) + h(i,j,k)
-!         enddo
-!       endif
+      if (ice_shelf) then
+         call build_rho_column(CS%rho_CS, nz, nominalDepth, h(i, j, :), &
+              tv%T(i, j, :), tv%S(i, j, :), tv%eqn_of_state, zNew, &
+              z_rigid_top = totalThickness - nominalDepth, eta_orig = zOld(1), &
+              h_neglect=h_neglect, h_neglect_edge=h_neglect_edge)
+      else
+         call build_rho_column(CS%rho_CS, nz, nominalDepth, h(i, j, :), &
+                            tv%T(i, j, :), tv%S(i, j, :), tv%eqn_of_state, zNew, &
+                            h_neglect=h_neglect, h_neglect_edge=h_neglect_edge)
+      endif
+      if (CS%integrate_downward_for_e) then
+        zOld(1) = 0.
+        do k = 1,nz
+          zOld(k+1) = zOld(k) - h(i,j,k)
+        enddo
+      else
+        ! The rest of the model defines grids integrating up from the bottom
+        zOld(nz+1) = - nominalDepth
+        do k = nz,1,-1
+          zOld(k) = zOld(k+1) + h(i,j,k)
+        enddo
+      endif
 
-!       ! Calculate the final change in grid position after blending new and old grids
-!       call filtered_grid_motion( CS, nz, zOld, zNew, dzInterface(i,j,:) )
+      ! Calculate the final change in grid position after blending new and old grids
+      call filtered_grid_motion( CS, nz, zOld, zNew, dzInterface(i,j,:) )
 
-! #ifdef __DO_SAFETY_CHECKS__
-!       do k = 2,nz
-!         if (zNew(k) > zOld(1)) then
-!           write(0,*) 'zOld=',zOld
-!           write(0,*) 'zNew=',zNew
-!           call MOM_error( FATAL, 'MOM_regridding, build_rho_grid: '//&
-!                'interior interface above surface!' )
-!         endif
-!         if (zNew(k) > zNew(k-1)) then
-!           write(0,*) 'zOld=',zOld
-!           write(0,*) 'zNew=',zNew
-!           call MOM_error( FATAL, 'MOM_regridding, build_rho_grid: '//&
-!                'interior interfaces cross!' )
-!         endif
-!       enddo
+#ifdef __DO_SAFETY_CHECKS__
+      do k = 2,nz
+        if (zNew(k) > zOld(1)) then
+          write(0,*) 'zOld=',zOld
+          write(0,*) 'zNew=',zNew
+          call MOM_error( FATAL, 'MOM_regridding, build_rho_grid: '//&
+               'interior interface above surface!' )
+        endif
+        if (zNew(k) > zNew(k-1)) then
+          write(0,*) 'zOld=',zOld
+          write(0,*) 'zNew=',zNew
+          call MOM_error( FATAL, 'MOM_regridding, build_rho_grid: '//&
+               'interior interfaces cross!' )
+        endif
+      enddo
 
-!       totalThickness = 0.0
-!       do k = 1,nz
-!         totalThickness = totalThickness + h(i,j,k)
-!       enddo
+      totalThickness = 0.0
+      do k = 1,nz
+        totalThickness = totalThickness + h(i,j,k)
+      enddo
 
-!       dh=max(nominalDepth,totalThickness)
-!       if (abs(zNew(1)-zOld(1))>(nz-1)*0.5*epsilon(dh)*dh) then
-!         write(0,*) 'min_thickness=',CS%min_thickness
-!         write(0,*) 'nominalDepth=',nominalDepth,'totalThickness=',totalThickness
-!         write(0,*) 'zNew(1)-zOld(1) = ',zNew(1)-zOld(1),epsilon(dh),nz
-!         do k=1,nz+1
-!           write(0,*) k,zOld(k),zNew(k)
-!         enddo
-!         do k=1,nz
-!           write(0,*) k,h(i,j,k),zNew(k)-zNew(k+1)
-!         enddo
-!         call MOM_error( FATAL, &
-!                'MOM_regridding, build_rho_grid: top surface has moved!!!' )
-!       endif
-! #endif
+      dh=max(nominalDepth,totalThickness)
+      if (abs(zNew(1)-zOld(1))>(nz-1)*0.5*epsilon(dh)*dh) then
+        write(0,*) 'min_thickness=',CS%min_thickness
+        write(0,*) 'nominalDepth=',nominalDepth,'totalThickness=',totalThickness
+        write(0,*) 'zNew(1)-zOld(1) = ',zNew(1)-zOld(1),epsilon(dh),nz
+        do k=1,nz+1
+          write(0,*) k,zOld(k),zNew(k)
+        enddo
+        do k=1,nz
+          write(0,*) k,h(i,j,k),zNew(k)-zNew(k+1)
+        enddo
+        call MOM_error( FATAL, &
+               'MOM_regridding, build_rho_grid: top surface has moved!!!' )
+      endif
+#endif
 
-!     enddo  ! end loop on i
-!   enddo  ! end loop on j
+    enddo  ! end loop on i
+  enddo  ! end loop on j
 
-! end subroutine build_rho_grid
+end subroutine build_rho_grid
 
 ! !> Builds a simple HyCOM-like grid with the deepest location of potential
 ! !! density interpolated from the column profile and a clipping of depth for
@@ -1944,9 +1946,9 @@ subroutine initCoord(CS, GV, US, coord_mode)
     call init_coord_zlike(CS%zlike_CS, CS%nk, CS%coordinateResolution)
   case (REGRIDDING_SIGMA)
     call init_coord_sigma(CS%sigma_CS, CS%nk, CS%coordinateResolution)
-!  case (REGRIDDING_RHO)
-!    call init_coord_rho(CS%rho_CS, CS%nk, CS%ref_pressure, CS%target_density, CS%interp_CS)
-!  case (REGRIDDING_HYCOM1)
+  case (REGRIDDING_RHO)
+    call init_coord_rho(CS%rho_CS, CS%nk, CS%ref_pressure, CS%target_density, CS%interp_CS)
+ ! case (REGRIDDING_HYCOM1)
 !    call init_coord_hycom(CS%hycom_CS, CS%nk, CS%coordinateResolution, CS%target_density, &
 !                          CS%interp_CS)
 !  case (REGRIDDING_SLIGHT)
@@ -2406,23 +2408,34 @@ end subroutine dz_function1
 !> Parses a string and generates a rho_target(:) profile with refined resolution downward
 !! and returns the number of levels
 integer function rho_function1( string, rho_target )
-  character(len=*),   intent(in)    :: string !< String with list of parameters in form
-                                              !! dz_min, H_total, power, precision
+  character(len=*),   intent(in)    :: string !< String with list of parameters in form (TBD)
+
   real, dimension(:), allocatable, intent(inout) :: rho_target !< Profile of interface densities [kg m-3]
   ! Local variables
-  integer :: nki, k, nk
+  integer :: nki, k, nk, order
   real    :: ddx, dx, rho_1, rho_2, rho_3, drho, rho_4, drho_min
 
-  read( string, *) nk, rho_1, rho_2, rho_3, drho, rho_4, drho_min
+  read( string, *) nk, rho_1, rho_2, rho_3, drho, rho_4, drho_min,order
   allocate(rho_target(nk+1))
   nki = nk + 1 - 4 ! Number of interfaces minus 4 specified values
   rho_target(1) = rho_1
   rho_target(2) = rho_2
+  if (order>2) &
+     call MOM_error(FATAL,'order for rho reconstruction 1 or 2')
+
   dx = 0.
   do k = 0, nki
-    ddx = max( drho_min, real(nki-k)/real(nki*nki) )
+    if (order==1) then
+       ddx=max(drho_min,1.0-real(nki-k)/real(nki))
+    elseif (order==2) then
+       ddx = max( drho_min, real(nki-k)/real(nki*nki) )
+    endif
     dx = dx + ddx
-    rho_target(3+k) = rho_3 + (2. * drho) * dx
+    if (order==1) then
+       rho_target(3+k) = rho_3 + (drho) * ddx
+    elseif (order==2) then
+       rho_target(3+k) = rho_3 + (2. * drho) * dx
+    endif
   enddo
   rho_target(nki+4) = rho_4
 

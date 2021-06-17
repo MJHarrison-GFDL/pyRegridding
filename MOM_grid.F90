@@ -68,6 +68,7 @@ type, public :: ocean_grid_type
   real :: max_depth     !< The maximum depth of the ocean in depth units [Z ~> m].
 
   real, dimension(:,:), allocatable :: bathyT
+  real, dimension(:,:), allocatable :: mask2dT
 end type ocean_grid_type
 
 
