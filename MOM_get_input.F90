@@ -59,10 +59,11 @@ subroutine get_MOM_input(param_file, dirs, check_params, default_input_filename,
 
   ! Default values in case parameter is not set in file input.nml
   parameter_filename(:) = ' '
-  output_directory = ' '
-  restart_input_dir = ' '
+  parameter_filename(1) = 'MOM_input'
+  output_directory = '.'
+  restart_input_dir = '.'
   restart_output_dir = ' '
-  input_filename  = 'MOM_input'
+  input_filename  = ''
   if (present(default_input_filename)) input_filename = trim(default_input_filename)
 
   ! Open namelist
