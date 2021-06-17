@@ -25,7 +25,7 @@ end function stdout
 
 integer function stdlog()
 
-  stdlog = 5
+  stdlog = -1
 
 end function stdlog
 
