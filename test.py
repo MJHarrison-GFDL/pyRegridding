@@ -1,7 +1,7 @@
 import numpy as np
 import regrid
 import remap
-#import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt#import matplotlib.pyplot as plt
 
 H=100.;n0=10;z0=np.linspace(0,-H,n0+1)
 T_s=-2;T_b=2
@@ -13,8 +13,6 @@ fs=np.array([1.])
 zbot=np.array([H])
 CoordRes=z0[:-1]-z0[1:]
 
-
-z0[1]=z0[1]+0.5
 z_in = z0[np.newaxis,np.newaxis,:]
 T_in = T[np.newaxis,np.newaxis,:]
 S_in = S[np.newaxis,np.newaxis,:]
@@ -25,5 +23,8 @@ zbot_in=zbot[np.newaxis,:]
 
 z_out=regrid.regrid_mod.update_grid(z_in,T_in,S_in,zbot,ps_in,fs_in,'ZSTAR',CoordRes,'PCM')
 
+#plt.plot(np.squeeze(z_in))
+#plt.plot(np.squeeze(z_out))
+#plt.show()
 print('z_in=',z_in)
 print('z_out=',z_out)
