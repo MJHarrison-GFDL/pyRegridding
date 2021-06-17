@@ -140,6 +140,7 @@ contains
 
     update_grid=zi+dzInterface
 
+    deallocate(US)
 
 
   end function update_grid
