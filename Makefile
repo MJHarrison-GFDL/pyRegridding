@@ -47,4 +47,4 @@ test: $(TARGET)
 	python test.py
 
 clean:
-	 rm -rf *.o *.mod *.MOD .mod libRegrid.a pkg/MOM6/src/framework/*.o pkg/MOM6/src/core/*.o pkg/MOM6/src/ALE/*.o pkg/pyRemapping/*.o
+	 rm -rf build *.o *.mod *.MOD .mod libRegrid.a pkg/MOM6/src/framework/*.o pkg/MOM6/src/core/*.o pkg/MOM6/src/ALE/*.o pkg/pyRemapping/*.o

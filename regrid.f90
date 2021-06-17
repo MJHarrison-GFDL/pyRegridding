@@ -21,12 +21,12 @@ module regrid_mod
 
   private
 
-  public :: regrid
+  public :: update_grid
 
 
 contains
 
-  subroutine regrid(zi,T,S,zbot,ps,frac_shelf_h,coord_mode,coord_resolution,remapping_scheme,zo)
+  function update_grid(zi,T,S,zbot,ps,frac_shelf_h,coord_mode,coord_resolution,remapping_scheme)
     real(kind=8), dimension(:,:,:), intent(in) :: zi !< The original interface positions
     real(kind=8), target, dimension(:,:,:), intent(in) :: T  !< Temperature on original grid (degC)
     real(kind=8), target, dimension(:,:,:), intent(in) :: S  !< Salinity on original grid (g kg-1)
@@ -36,7 +36,7 @@ contains
     character(len=*), intent(in) :: coord_mode !< The coordinate mode ('REGRIDDING_ZSTAR', etc.')
     real(kind=8), dimension(:) :: coord_resolution !< The nominal coordinate resolution in units defined by coord_mode
     character(len=*), intent(in) :: remapping_scheme !< The remapping scheme to use for coordinate construction ('PLM','PPM_IH4',etc)
-    real, dimension(:,:,:), intent(out) :: zo !< The update grid interface positions
+    real(kind=8), dimension(size(zi,1),size(zi,2),size(zi,3)) :: update_grid !< The resulting grid interface positions
 
     real, parameter :: epsln=1.e-10
     real, parameter :: min_thickness=1.e-9
@@ -63,7 +63,6 @@ contains
 
     ni=size(zi,1);nj=size(zi,2);nk=size(zi,3)-1
 
-    if (ni /= size(zo,1) .or. nj .ne. size(zo,2) .or. nk /= size(zo,3)-1) call MOM_error(FATAL,'size mismatch zi/zo')
     if (ni /= size(T,1) .or. nj .ne. size(T,2) .or. nk /= size(T,3)) call MOM_error(FATAL,'size mismatch zi/T')
     if (ni /= size(S,1) .or. nj .ne. size(S,2) .or. nk /= size(S,3)) call MOM_error(FATAL,'size mismatch zi/S')
     if (ni /= size(ps,1) .or. nj .ne. size(ps,2)) call MOM_error(FATAL,'size mismatch zi/ps')
@@ -133,11 +132,11 @@ contains
 
 
     print *,'dzInterface=',dzInterface
-    zo=zi+dzInterface
-    print *,'zo=',zo
+    update_grid=zi+dzInterface
 
 
-  end subroutine regrid
+
+  end function update_grid
 
 
 
