@@ -26,6 +26,7 @@ SRCS =  MOM_error_handler.F90\
 	pkg/MOM6/src/ALE/regrid_consts.F90 pkg/MOM6/src/ALE/PQM_functions.F90\
 	pkg/MOM6/src/ALE/regrid_interp.F90 pkg/MOM6/src/ALE/MOM_remapping.F90\
         pkg/MOM6/src/ALE/coord_zlike.F90 pkg/MOM6/src/ALE/coord_sigma.F90\
+        pkg/MOM6/src/ALE/coord_hycom.F90\
 	MOM_EOS_linear.F90 MOM_EOS_Wright.F90 MOM_EOS.F90\
 	pkg/MOM6/src/ALE/coord_rho.F90\
 	MOM_grid.F90\
