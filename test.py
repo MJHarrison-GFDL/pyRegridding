@@ -1,7 +1,7 @@
 import numpy as np
 import regrid
 import remap
-import matplotlib.pyplot as plt#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 
 def write_MOM_PF(ale_coord_config="UNIFORM",ale_units="m",eos='LINEAR',interpolation_scheme='PLM',p_ref=0.e7):
