@@ -20,4 +20,5 @@ numpy
 INSTRUCTIONS:
 ============
 
+(cd pkg/pyRemapping;make test)
 make test
