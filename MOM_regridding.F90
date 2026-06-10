@@ -393,9 +393,11 @@ subroutine initialize_regridding(CS, GV, US, max_depth, param_file, mdl, coord_m
       endif
     else
       ! Assume reading resolution
-      call field_size(trim(fileName), trim(varName), nzf)
-      ke = nzf(1)
+      !call field_size(trim(fileName), trim(varName), nzf)
+      !ke = nzf(1)
+      ke = GV%ke
       allocate(dz(ke))
+      print *,'allocating dz size = ',ke
       call MOM_read_data(trim(fileName), trim(varName), dz)
     endif
     if (main_parameters .and. (ke/=GV%ke)) then
