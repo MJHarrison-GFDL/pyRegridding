@@ -12,7 +12,7 @@ REQUIREMENTS:
 ============
 
 - gcc/gfortran compiler environment
-- python/3.11 or older (numpy.distutils not supported after 3.11)
+- matplotlib (for testing)
 - numpy
 
 
@@ -20,5 +20,9 @@ REQUIREMENTS:
 INSTRUCTIONS:
 ============
 
-- (cd pkg/pyRemapping;make test)
+Regular install:
+
+    make install
+
+- (cd pkg/pyRemapping;make install)
 - make test

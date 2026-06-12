@@ -1,0 +1,19 @@
+[build-system]
+requires = [
+    "meson>=1.1.0",
+    "meson-python>=0.13.0",
+    "ninja",
+    "numpy>=1.23",
+]
+build-backend = "mesonpy"
+
+[project]
+name = "pyRegridding"
+version = "1.0.0"
+description = ""
+authors = [
+    {name = "Matthew Harrison", email = "matthew.harrison@noaa.gov"},
+]
+license = {text = "CCL"}
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.23"]
