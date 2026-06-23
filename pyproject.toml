@@ -3,7 +3,7 @@ requires = [
     "meson>=1.1.0",
     "meson-python>=0.13.0",
     "ninja",
-    "numpy>=1.23",
+    "numpy>=1.19",
 ]
 build-backend = "mesonpy"
 
@@ -16,4 +16,4 @@ authors = [
 ]
 license = {text = "CCL"}
 requires-python = ">=3.9"
-dependencies = ["numpy>=1.23"]
+dependencies = ["numpy>=1.19"]
