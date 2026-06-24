@@ -11,9 +11,8 @@ SUBMODULES:
 REQUIREMENTS:
 ============
 
-- gcc/gfortran compiler environment
-- matplotlib (for testing)
-- numpy
+- gcc/gfortran compiler environment, e.g.
+$  conda create --name pyRegridding-dev python=3.9 numpy=1.19 gcc gfortran matplotlib
 
 
 
@@ -22,7 +21,7 @@ INSTRUCTIONS:
 
 Regular install:
 
-    make install
 
-- (cd pkg/pyRemapping;make install)
-- make test
+$ (git submodule init; git submodule update)
+$ (cd pkg/pyRemapping;make)
+$ make test
