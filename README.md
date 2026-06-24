@@ -12,7 +12,7 @@ REQUIREMENTS:
 ============
 
 - gcc/gfortran compiler environment, e.g.
-$  conda create --name pyRegridding-dev python=3.9 numpy=1.19 gcc gfortran matplotlib
+$ conda create --name pyRegridding-dev python=3.10 numpy=2.0 gcc gfortran matplotlib xarray netcdf4
 
 
 
@@ -24,4 +24,4 @@ Regular install:
 
 $ (git submodule init; git submodule update)
 $ (cd pkg/pyRemapping;make)
-$ make test
+$ (make;make test)
