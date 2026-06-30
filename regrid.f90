@@ -13,7 +13,7 @@ module regrid_mod
   use MOM_grid, only : ocean_grid_type
   use MOM_error_handler, only : MOM_error, FATAL
   use MOM_unit_scaling,     only : unit_scale_type, unit_scaling_init
-  use MOM_file_parser, only : param_file_type, get_param
+  use MOM_file_parser, only : param_file_type, get_param, close_param_file
   use MOM_get_input, only : directories, get_MOM_input
 
 
@@ -142,6 +142,7 @@ contains
 
     update_grid=zi+dzInterface
 
+    call close_param_file(PF)
     deallocate(US)
 
 
