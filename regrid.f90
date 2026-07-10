@@ -15,6 +15,8 @@ module regrid_mod
   use MOM_unit_scaling,     only : unit_scale_type, unit_scaling_init
   use MOM_file_parser, only : param_file_type, get_param, close_param_file
   use MOM_get_input, only : directories, get_MOM_input
+  use regrid_consts, only : REGRIDDING_ZSTAR
+  use coord_zlike, only : init_coord_zlike
 
 
   implicit none
@@ -22,6 +24,7 @@ module regrid_mod
   private
 
   public :: update_grid
+  public :: update_grid_zstar
 
 
 contains
@@ -148,6 +151,117 @@ contains
 
   end function update_grid
 
+  function update_grid_zstar(zi,zbot,frac_shelf_h,coord_resolution,remapping_scheme,min_thickness)
+    real(kind=8), dimension(:,:,:), intent(in) :: zi !< The original interface positions
+    real(kind=8), dimension(:,:), intent(in) :: zbot !< The original interface positions
+    real(kind=8), dimension(:,:), intent(in) :: frac_shelf_h  !< Fractional ice shelf area (nondims)
+    real(kind=8), dimension(:), intent(in) :: coord_resolution !< The nominal layer thicknesses (m)
+    character(len=*), intent(in) :: remapping_scheme !< The remapping scheme to use ('PLM','PPM_IH4',etc)
+    real, intent(in), optional :: min_thickness !< Provide a non-default value for MIN_THICKNESS (m). Defaults to 0.0 m.
+    real(kind=8), dimension(size(zi,1),size(zi,2),size(zi,3)) :: update_grid_zstar !< The resulting grid interface positions.
+
+    real :: max_depth
+    real :: min_thickness_local
+    real :: dz_total
+    real, dimension(size(coord_resolution)) :: dz
+    type(regridding_CS) :: CS
+    type(verticalGrid_type) :: GV
+    type(ocean_grid_type) :: G
+
+    type(thermo_var_ptrs) :: tv
+    type(remapping_CS) :: remapCS
+
+    real(kind=8), dimension(size(zi,1),size(zi,2),size(zi,3)-1) :: h0
+    real(kind=8), dimension(size(zi,1),size(zi,2),size(zi,3)-1) :: h_new
+    real(kind=8), dimension(size(zi,1),size(zi,2),size(zi,3)) :: dzInterface
+
+    integer :: nk,ni,nj,i,j,k,ke
+    logical :: conv_adjust = .false.
+
+    ni=size(zi,1);nj=size(zi,2);nk=size(zi,3)-1
+    ke=size(coord_resolution)
+
+    min_thickness_local = 0.0
+    if (present(min_thickness)) min_thickness_local = min_thickness
+
+    G%isc=1;G%iec=ni;G%jsc=1;G%jec=nj
+    G%isd=1;G%ied=ni;G%jsd=1;G%jed=nj
+    allocate(G%bathyT(G%isc:G%iec,G%jsc:G%jec))
+    allocate(G%mask2dT(G%isc:G%iec,G%jsc:G%jec))
+    G%bathyT(:,:)=zbot(:,:)
+
+    G%mask2dT(:,:)=0.0
+    do j=1,nj; do i=1,ni
+      if (G%bathyT(i,j)>0.) G%mask2dT(i,j)=1
+    enddo; enddo
+
+    max_depth=-minval(zi)
+    GV%g_Earth=9.8
+    GV%Boussinesq = .true.
+    GV%Angstrom_m = 1.e-12
+    GV%H_to_m = 1.0
+    GV%ke = nk
+
+    ! GV%Boussinesq is hard-coded to .true. so the code always follows this path.
+    GV%H_to_kg_m2 = GV%H_to_m
+    GV%kg_m2_to_H = 1.0 / GV%H_to_kg_m2
+    GV%m_to_H = 1.0 / GV%H_to_m
+    GV%Angstrom_H = GV%m_to_H * GV%Angstrom_m
+    GV%H_to_MKS = GV%H_to_m
+
+    GV%H_subroundoff = 1e-20 * max(GV%Angstrom_H,GV%m_to_H*1e-17)
+    GV%H_to_Pa = GV%g_Earth * GV%H_to_kg_m2
+
+    GV%H_to_Z = GV%H_to_m
+    GV%Z_to_H = GV%m_to_H
+    GV%Angstrom_Z = GV%Angstrom_m
+    GV%H_to_RZ = GV%H_to_kg_m2
+    GV%RZ_to_H = GV%kg_m2_to_H
+
+    allocate( GV%sInterface(nk+1) )
+    allocate( GV%sLayer(nk) )
+    allocate( GV%g_prime(nk+1) ) ; GV%g_prime(:) = 0.0
+    allocate( GV%Rlay(nk) )      ; GV%Rlay(:) = 0.0
+
+    ! Adjust the deepest layer so the target resolution sums to the domain's true max depth,
+    ! mirroring what initialize_regridding does for the REGRIDDING_ZSTAR coordinate.
+    dz = coord_resolution
+    dz_total = sum(dz)
+    if (dz_total < max_depth) then
+      dz(ke) = dz(ke) + (max_depth - dz_total)
+    elseif (dz_total > max_depth) then
+      if (dz(ke) + (max_depth - dz_total) > 0.) then
+        dz(ke) = dz(ke) + (max_depth - dz_total)
+      else
+        call MOM_error(FATAL,'update_grid_zstar: MAX_DEPTH was too shallow to adjust the '// &
+                             'bottom layer of DZ!')
+      endif
+    endif
+
+    CS%nk = ke
+    CS%regridding_scheme = REGRIDDING_ZSTAR
+    allocate( CS%coordinateResolution(CS%nk) )
+
+    ! We currently do not support unit scaling in this code path, since unit_scaling depends
+    ! on reading parameters from MOM_input. By default setCoordinateResolution uses a scale
+    ! of 1.0.
+    call setCoordinateResolution(dz, CS)
+    call init_coord_zlike(CS%zlike_CS, CS%nk, CS%coordinateResolution)
+    call set_regrid_params(CS, min_thickness=min_thickness_local)
+    call initialize_remapping(remapCS,remapping_scheme)
+
+    do j=1,nj
+      do i=1,ni
+        do k=1,nk
+          h0(i,j,k)=zi(i,j,k)-zi(i,j,k+1)
+        enddo
+      enddo
+    enddo
+    call regridding_main(remapCS, CS, G, GV, h0, tv, h_new, dzInterface, frac_shelf_h, conv_adjust)
+
+    update_grid_zstar=zi+dzInterface
+
+  end function update_grid_zstar
 
 
 end module regrid_mod
